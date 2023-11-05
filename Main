@@ -1,0 +1,105 @@
+import os
+import logging
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import Application, CommandHandler, CallbackContext, ConversationHandler, MessageHandler, filters, CallbackQueryHandler
+import tweepy
+import time
+import threading
+from stream_rules import stream_rules
+from typing import Final
+
+# Set up logging
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.INFO
+)
+
+logger = logging.getLogger(__name__)
+
+TOKEN: Final = '6884003375:AAHUWSnh3M_i1Eew6UjHvhqfazfpLEnT_sQ'
+BOT_USERNAME: Final = '@TweakerTestBot'
+
+credentials = []
+
+class MyStream(tweepy.StreamingClient):
+    pass
+
+streams = {}
+for i, creds in enumerate(credentials):
+    pass
+
+API_KEY, API_SECRET, BEARER_TOKEN, ACCESS_TOKEN, ACCESS_TOKEN_SECRET, TWITTER_HANDLE = range(6)
+
+async def start(update: Update, context: CallbackContext) -> int:
+    logger.info("start command received")
+    await update.message.reply_text('Please enter the api_key')
+    return API_KEY
+
+async def api_key(update: Update, context: CallbackContext) -> int:
+    context.user_data['api_key'] = update.message.text
+    await update.message.reply_text('Please enter the api_secret')
+    return API_SECRET
+
+async def api_secret(update: Update, context: CallbackContext) -> int:
+    context.user_data['api_secret'] = update.message.text
+    await update.message.reply_text('Please enter the bearer_token')
+    return BEARER_TOKEN
+
+async def bearer_token(update: Update, context: CallbackContext) -> int:
+    context.user_data['bearer_token'] = update.message.text
+    await update.message.reply_text('Please enter the access_token')
+    return ACCESS_TOKEN
+
+async def access_token(update: Update, context: CallbackContext) -> int:
+    context.user_data['access_token'] = update.message.text
+    await update.message.reply_text('Please enter the access_token_secret')
+    return ACCESS_TOKEN_SECRET
+
+async def access_token_secret(update: Update, context: CallbackContext) -> int:
+    context.user_data['access_token_secret'] = update.message.text
+    await update.message.reply_text('Please enter your Twitter handle')
+    return TWITTER_HANDLE
+
+async def twitter_handle(update: Update, context: CallbackContext) -> int:
+    context.user_data['twitter_handle'] = update.message.text
+    credentials.append(context.user_data)
+    handles = context.bot_data.get('handles', [])
+    handles.append((update.effective_user.username, context.user_data['twitter_handle']))
+    context.bot_data['handles'] = handles
+    with open('credentials.py', 'w') as f:
+        f.write(f'credentials = {credentials}\n')
+    await update.message.reply_text('Account added successfully!')
+    return ConversationHandler.END
+
+async def log_username(update: Update, context: CallbackContext) -> None:
+    handles = context.bot_data.get('handles', [])
+    await update.message.reply_text(f"Handles: {', '.join(f'Telegram: {telegram}, Twitter: {twitter}' for telegram, twitter in handles)}")
+
+async def cancel(update: Update, context: CallbackContext) -> int:
+    await update.message.reply_text('Operation cancelled.')
+    return ConversationHandler.END
+
+def main() -> None:
+    logger.info("Starting bot")
+    application = Application.builder().token(TOKEN).build()
+
+    conv_handler = ConversationHandler(
+        entry_points=[CommandHandler('start', start)],
+        states={
+            API_KEY: [MessageHandler(filters.TEXT & ~filters.COMMAND, api_key)],
+            API_SECRET: [MessageHandler(filters.TEXT & ~filters.COMMAND, api_secret)],
+            BEARER_TOKEN: [MessageHandler(filters.TEXT & ~filters.COMMAND, bearer_token)],
+            ACCESS_TOKEN: [MessageHandler(filters.TEXT & ~filters.COMMAND, access_token)],
+            ACCESS_TOKEN_SECRET: [MessageHandler(filters.TEXT & ~filters.COMMAND, access_token_secret)],
+            TWITTER_HANDLE: [MessageHandler(filters.TEXT & ~filters.COMMAND, twitter_handle)]
+        },
+        fallbacks=[CommandHandler('cancel', cancel)],
+    )
+
+    application.add_handler(conv_handler)
+    application.add_handler(CallbackQueryHandler(log_username))  # Add the new button handler
+
+    application.run_polling()
+
+if __name__ == '__main__':
+    main()
